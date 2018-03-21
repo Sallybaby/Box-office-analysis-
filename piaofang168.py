@@ -1,28 +1,21 @@
-
-import requests
-from bs4 import BeautifulSoup
+#coding=utf-8
+#爬取票房168网站的票房数据
+import sys,locale
 import re
 import datetime
+import requests
+from bs4 import BeautifulSoup
+import os
 
-
+#import storeDaillyInformationToMySql
 headers = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Encoding": "gzip, deflate",
     "Accept-Language": "en-US,en;q=0.5",
     "Connection": "keep-alive",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/65.0.3325.162 Safari/537.36"}
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.162 Safari/537.36"}
 
-#用于将一个列表平均分成多个列表
-def list_of_groups(init_list, childern_list_len):
-    list_of_groups = zip(*(iter(init_list),) *childern_list_len)
-    end_list = [list(i) for i in list_of_groups]
-    count = len(init_list) % childern_list_len
-    end_list.append(init_list[-count:]) if count !=0 else end_list
-    return end_list
-
-#由于该网站可以查询指定日期的票房情况
-#日期函数
+#这是个日期生成函数，参数是日期的范围，返回日期参数
 def dateRange(beginDate, endDate):
     dates = []
     dt = datetime.datetime.strptime(beginDate, "%Y-%m-%d")
@@ -32,32 +25,118 @@ def dateRange(beginDate, endDate):
         dt = dt + datetime.timedelta(1)
         date = dt.strftime("%Y-%m-%d")
     return dates
-#爬取网页数据
-def get_data(date):
-    data={"riqi":date}
-    url="http://www.piaofang168.com/index.php/Jinzhun"
-    res=requests.post(url,headers=headers,data=data)
-    res.encoding='utf-8'
-    soup=BeautifulSoup(res.text,'html.parser')
-    data=soup.select('.gross_table')[0].text.split()
-    del data[0]
-    Datetime=data[1]
-    del data[0]
-    newdata=list_of_groups(data,6)
-    #print(newdata)
-    dataFileName = 'piaofang168.txt'
-    file_to_write = open(dataFileName,'a',encoding='utf-8')
-    file_to_write.write("上映时间，当日票房，累计票房，当日排片，上座率，上映天数\n")
-    for i in range(len(newdata)):
-        #将列表转换成字符串
-        text=",".join(newdata[i])
-        file_to_write.write(text + '\n')
-        print(text)
-    file_to_write.close()
+
+def getData(date):
+	
+	post_url="http://www.piaofang168.com/index.php/Jinzhun" 
+	# url parameter
+	data={"riqi":date}
+	html=requests.post(post_url,data=data,headers=headers)
+	html_soup=BeautifulSoup(html.text,"html.parser")
+	table=html_soup.find('div',attrs={'class':'gross_total'}).find('table',attrs={'class':'gross_table'})
+	tr = table.find_all('tr')
+	# print(tr)
+	# get the date
+	date_data = table.find_all('h1')[0]
+	date_str = str(date_data).replace('\r','').replace('\n','').replace(' ','')
+	date=re.findall('<h1>(.*?)周',date_str)[0]
+
+	dataFileName = 'movie_erverday_information.txt'
+	file_to_write = open(dataFileName,'a',encoding='utf-8')
+
+	index = 0
+	for item_tr in tr[1:200]:
+		item_td = item_tr.find_all('td')
+		contentString = str(item_td).replace('\r','').replace('\n','').replace(' ','').replace('	','').replace(',','').replace('，','')
+		#print(contentString)
+		index = index + 1
+		if(index%2 == 1):
+			try:
+				movie_name = re.findall('-bg">(.*?)<',str(contentString))[0]
+			except:
+				movie_name = '--'
+	        #电影当日票房
+			try:
+				movie_daily_BoxOffice = re.findall('lor2">(.*?)<',str(contentString))[0]
+			except:
+				movie_daily_BoxOffice = '--'
+	        #电影总票房
+			try:
+				movie_total_BoxOffice = re.findall('lor3">(.*?)<',str(contentString))[0]
+			except:
+				movie_total_BoxOffice = '--'
+	        #排片占比
+			try:
+				percentage_screenings = re.findall('lor4">(.*?)<',str(contentString))[0]
+			except:
+				percentage_screenings = '--'
+	        #上座率
+			try:
+				attendance = re.findall('lor5">(.*?)<',str(contentString))[0]
+			except:
+				attendance = '--'
+	        #上映天数
+			try:
+				release_time = re.findall('lor6">(.*?)<',str(contentString))[0]
+			except:
+				release_time = '--'
+		elif(index%2 == 0):
+			try:
+				movie_name = re.findall('ybg2">(.*?)<',str(contentString))[0]
+			except:
+				movie_name = '--'
+	        #电影当日票房
+			try:
+				movie_daily_BoxOffice = re.findall('c2">(.*?)<',str(contentString))[0]
+			except:
+				movie_daily_BoxOffice = '--'
+	        #电影总票房
+			try:
+				movie_total_BoxOffice = re.findall('c3">(.*?)<',str(contentString))[0]
+			except:
+				movie_total_BoxOffice = '--'
+	        #排片占比
+			try:
+				percentage_screenings = re.findall('c4">(.*?)<',str(contentString))[0]
+			except:
+				percentage_screenings = '--'
+	        #上座率
+			try:
+				attendance = re.findall('c5">(.*?)<',str(contentString))[0]
+			except:
+				attendance = '--'
+	        #上映天数
+			try:
+				release_time = re.findall('c6">(.*?)<',str(contentString))[0]
+			except:
+				release_time = '--'
+			#电影名称获取失败，直接跳过
+		# to change the data as same formate
+		if(movie_name == '--' or movie_daily_BoxOffice == '--' or movie_daily_BoxOffice == ''or movie_daily_BoxOffice == '--'):
+			continue
+		if(attendance == ''):
+			attendance = '--'
+		if(release_time == '' or release_time == '-'):
+			release_time = '--'
+
+		text =date+','+movie_name +','+movie_daily_BoxOffice+','+ movie_total_BoxOffice+','+percentage_screenings+','+attendance+','+release_time
+		print (text)
+		
+		try:
+			if file_to_write.write(text+'\n'):
+				print('success get information:'+date)
+			else:
+				print('fail to get information:'+date)
+				continue
+		except:
+			print('fail to get information:'+date)
+			continue
+	file_to_write.close()
 
 if __name__ == '__main__':
-    beginDate = str(input("请输入要查询数据的开始时间（年-月-日）:"))
-    endDate = str(input("请输入要查询数据的结束时间（年-月-日）:"))
-    dates = dateRange(beginDate, endDate)
-    for date in dates:
-        get_data(date)
+	beginDate = str(input("请输入要查询数据的开始时间（年-月-日）:"))
+	endDate = str(input("请输入要查询数据的结束时间（年-月-日）:"))
+	dates = dateRange(beginDate, endDate)
+	for date in dates:
+		getData (date)
+	print("\n\n"+beginDate+"至"+endDate+"的数据已全部抓取完毕！\n\n")
